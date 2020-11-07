@@ -249,4 +249,47 @@ module OBS
       xml_quality && xml_quality[:attribute] ? xml_quality[:attribute][:text].strip : ''
     end
   end
+
+  # Loads list of distributions
+  #
+  # @return [Array]
+  # Each element is an object with the following fields:
+  # name:
+  # project:
+  # reponame:
+  # repository:
+  # dist_id:
+  def self.load_distributions
+    Rails.cache.fetch('distributions', expires_in: 2.hours) do
+      Rails.logger.debug 'Loading distributions'
+      loaded_distros = []
+      begin
+        response = OBS.client.get('/public/distributions')
+        response.body.distributions.distribution.each do |element|
+          loaded_distros << parse_distribution(element)
+        end
+        loaded_distros.unshift(Hash[name: 'ALL Distributions', project: 'ALL'])
+      rescue Exception => e
+        Rails.logger.error 'Error while loading distributions: ' + e.to_s
+        raise OBSError.new, _('OBS Backend not available')
+      end
+      loaded_distros
+    end
+  end
+
+  # Parse a distribution element
+  # @param [REXML::Element]
+  #
+  # @return decoded element
+  def self.parse_distribution(element)
+    dist = {
+      name: element.name,
+      project: element.project,
+      reponame: element.reponame,
+      repository: element.repository,
+      dist_id: element.id.sub('.', '')
+    }
+    Rails.logger.debug "Added Distribution: #{dist[:name]}"
+    dist
+  end
 end

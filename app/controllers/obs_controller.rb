@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'api_connect'
+require 'obs'
 
 class OBSError < StandardError; end
 
@@ -13,42 +13,11 @@ class OBSController < ApplicationController
   private
 
   def set_distributions
-    @distributions = Rails.cache.fetch('distributions', expires_in: 120.minutes) do
-      load_distributions
-    end
+    @distributions = OBS.load_distributions
   rescue OBSError
     @distributions = nil
     @hide_search_box = true
     flash[:error] = 'Connection to OBS is unavailable. Functionality of this site is limited.'
-  end
-
-  def load_distributions
-    logger.debug 'Loading distributions'
-    loaded_distros = []
-    begin
-      response = ApiConnect.get('public/distributions')
-      doc = REXML::Document.new response.body
-      doc.elements.each('distributions/distribution') do |element|
-        loaded_distros << parse_distribution(element)
-      end
-      loaded_distros.unshift(Hash[name: 'ALL Distributions', project: 'ALL'])
-    rescue Exception => e
-      logger.error 'Error while loading distributions: ' + e.to_s
-      raise OBSError.new, _('OBS Backend not available')
-    end
-    loaded_distros
-  end
-
-  def parse_distribution(element)
-    dist = {
-      name: element.elements['name'].text,
-      project: element.elements['project'].text,
-      reponame: element.elements['reponame'].text,
-      repository: element.elements['repository'].text,
-      dist_id: element.attributes['id'].sub('.', '')
-    }
-    logger.debug "Added Distribution: #{dist[:name]}"
-    dist
   end
 
   def set_search_options
